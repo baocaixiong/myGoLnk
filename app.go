@@ -18,8 +18,20 @@ func NewApp() *App {
 	a.middle = make([]Handler, 0)
 	a.inter = make(map[string]Handler)
 	a.config, _ = NewConfig("config.json")
-	a.view = NewView(a.config.String("view_dir", "view"))
-	println(a.config.String("nihao.haha", "123"))
+	a.view = NewView(a.config.StringOr("view_dir", "view"))
 
 	return a
+}
+
+// 添加处理中间件
+func (app *App) Use(h ...Handler) {
+	app.middle = append(app.middle, h...)
+}
+
+func (app *App) Config() *Config {
+	return app.config
+}
+
+func (app *App) View() *View {
+	return app.view
 }

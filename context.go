@@ -18,6 +18,7 @@ type Context struct {
 	Ip         string
 	UserAgent  string
 	Referer    string
+	Host       string
 	Ext        string
 	IsSSL      bool
 	IsAjax     bool
@@ -37,7 +38,7 @@ type Context struct {
 
 func NewContext(app *App, res http.ResponseWriter, req *http.Request) *Context {
 	context := new(Context)
-	context.flashData = Make(map[string]interface{})
+	context.flashData = make(map[string]interface{})
 	context.eventFunc = make(map[string][]reflect.Value)
 	context.app = app
 	context.IsSend = false
@@ -98,6 +99,8 @@ func (ctx *Context) Do(e string, args ...interface{}) [][]interface{} {
 	var fns []reflect.Value
 	if fns, ok := ctx.eventFunc[e]; !ok {
 		return nil
+	} else {
+		fns = fns
 	}
 
 	if len(ctx.eventFunc[e]) < 1 {
@@ -115,25 +118,23 @@ func (ctx *Context) Do(e string, args ...interface{}) [][]interface{} {
 			return nil
 		}
 		rArgs := make([]reflect.Value, numIn)
-		for i := range len(numIn) {
+		for i := 0; i < numIn; i++ {
 			rArgs[i] = reflect.ValueOf(args[i])
 		}
 		resValue := fn.Call(rArgs)
 		if len(resValue) < 1 {
-			resSlice = append(resSlice, []interface{})
+			resSlice = append(resSlice, []interface{}{})
 			continue
 		}
 		res := make([]interface{}, len(resValue))
 		for i, v := range resValue {
 			res[i] = v.Interface()
 		}
-		resSlice = append(resSlice, res...)
+		resSlice = append(resSlice, res)
 	}
 
 	return resSlice
 }
-
-func 
 
 func (ctx *Context) GetHeader(key string) string {
 	return ctx.Request.Header.Get(key)

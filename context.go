@@ -1,10 +1,19 @@
 package golnk
 
 import (
+	"encoding/json"
 	"net/http"
 	"path"
 	"reflect"
+	"strconv"
 	"strings"
+	"time"
+)
+
+const (
+	CONTEXT_RENDERED = "context_rendered"
+	CONTEXT_END      = "context_end"
+	CONTEXT_SEND     = "context_send"
 )
 
 type Context struct {
@@ -34,6 +43,8 @@ type Context struct {
 	eventFunc map[string][]reflect.Value
 	IsSend    bool
 	IsEnd     bool
+
+	layout string
 }
 
 func NewContext(app *App, res http.ResponseWriter, req *http.Request) *Context {
@@ -136,6 +147,140 @@ func (ctx *Context) Do(e string, args ...interface{}) [][]interface{} {
 	return resSlice
 }
 
+func (ctx *Context) Input() map[string]string {
+	data := make(map[string]string)
+	for key, v := range ctx.Request.Form {
+		data[key] = data[0]
+	}
+	return data
+}
+
+func (ctx *Context) Strings(key string) []string {
+	return ctx.Request.Form[key]
+}
+
+func (ctx *Context) String(key string) string {
+	return ctx.Request.FormValue(key)
+}
+
+func (ctx *Context) StringOr(key string, def string) string {
+	value := ctx.String(key)
+	if value == "" {
+		return def
+	}
+	return value
+}
+
+func (ctx *Context) Int(key string) int {
+	str := ctx.String(key)
+	i, _ := strconv.Atoi(str)
+	return i
+}
+
+func (ctx *Context) Float(key string) float64 {
+	str := ctx.String(key)
+	f, _ := strconv.ParseFloat(str, 64)
+	return f
+}
+
+func (ctx *Context) Bool(key string) bool {
+	str := ctx.String(key)
+	b, _ := strconv.ParseBool(str)
+	return b
+}
+
+func (ctx *Context) Cookie(key string, val ...string) string {
+	if len(value) < 1 {
+		c, e := ctx.Request.Cookie(key)
+		if e != nil {
+			return ""
+		}
+		return c.Value
+	}
+
+	if len(value) == 2 {
+		t := time.Now()
+		expire, _ := strconv.Atoi(value[1])
+		t = t.Add(time.Duration(expire) * time.Second)
+		cookie := &http.Cookie{
+			Name:   key,
+			Value:  value[0],
+			Path:   "/",
+			MaxAge: expire,
+			Expire: t,
+		}
+		http.SetCookie(ctx.Response, cookie)
+		return ""
+	}
+
+	return ""
+}
+
 func (ctx *Context) GetHeader(key string) string {
 	return ctx.Request.Header.Get(key)
+}
+
+func (ctx *Context) Redirect(url string, status ...int) {
+	ctx.Header["Location"] = url
+	if len(status) > 0 {
+		ctx.Status = status[0]
+		return
+	}
+	ctx.Status = 302
+}
+
+func (ctx *Context) ContentType(contentType string) {
+	ctx.Header["Content-Type"] = contentType
+}
+
+func (ctx *Context) Json(data interface{}) {
+	bytes, e := json.MarshalIndent(data, "", "    ")
+	if e != nil {
+		panic(e)
+	}
+	ctx.ContentType("application/json;charset=UTF-8")
+	ctx.Body = bytes
+}
+
+func (ctx *Context) Send() {
+	if ctx.IsSend {
+		return
+	}
+	for name, value := range ctx.header {
+		ctx.Response.Header().Set(name, value)
+	}
+	ctx.Response.WriteHeader(ctx.Status)
+	ctx.Response.Write(ctx.Body)
+	ctx.IsSend = true
+	ctx.Do(CONTEXT_SEND)
+}
+
+func (ctx *Context) End() {
+	if ctx.IsEnd {
+		return
+	}
+	if !ctx.IsSSL {
+		ctx.Send()
+	}
+	ctx.IsEnd = true
+	ctx.Do(CONTEXT_END)
+}
+
+func (ctx *Context) Throw(status int, message ...interface{}) {
+	e := strconv.Itoa(status)
+	ctx.Status = status
+	ctx.Do(e, message...)
+	ctx.End()
+}
+
+func (ctx *Context) Layout(str string) {
+	ctx.layout = str
+}
+
+func (ctx *Context) Tpl(tpl string, data map[string]interface{}) string {
+	b, e := ctx.app.view.Render(tpl+".html", data)
+	if e != nil {
+		panic(e)
+	}
+	return string(b)
 }

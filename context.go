@@ -3,6 +3,7 @@ package golnk
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"path"
 	"reflect"
 	"strconv"
@@ -189,7 +190,7 @@ func (ctx *Context) Bool(key string) bool {
 	return b
 }
 
-func (ctx *Context) Cookie(key string, val ...string) string {
+func (ctx *Context) Cookie(key string, value ...string) string {
 	if len(value) < 1 {
 		c, e := ctx.Request.Cookie(key)
 		if e != nil {
@@ -203,11 +204,11 @@ func (ctx *Context) Cookie(key string, val ...string) string {
 		expire, _ := strconv.Atoi(value[1])
 		t = t.Add(time.Duration(expire) * time.Second)
 		cookie := &http.Cookie{
-			Name:   key,
-			Value:  value[0],
-			Path:   "/",
-			MaxAge: expire,
-			Expire: t,
+			Name:    key,
+			Value:   value[0],
+			Path:    "/",
+			MaxAge:  expire,
+			Expires: t,
 		}
 		http.SetCookie(ctx.Response, cookie)
 		return ""
@@ -246,7 +247,7 @@ func (ctx *Context) Send() {
 	if ctx.IsSend {
 		return
 	}
-	for name, value := range ctx.header {
+	for name, value := range ctx.Header {
 		ctx.Response.Header().Set(name, value)
 	}
 	ctx.Response.WriteHeader(ctx.Status)
@@ -278,9 +279,55 @@ func (ctx *Context) Layout(str string) {
 }
 
 func (ctx *Context) Tpl(tpl string, data map[string]interface{}) string {
-	b, e := ctx.app.view.Render(tpl+".html", data)
+	b, e := ctx.app.View.Render(tpl+".html", data)
 	if e != nil {
 		panic(e)
 	}
 	return string(b)
+}
+
+func (ctx *Context) Render(tpl string, data map[string]interface{}) {
+	b, e := ctx.app.view.Render(tpl+".html", data)
+	if e != nil {
+		panic(e)
+	}
+	if ctx.layout != "" {
+		l, e := ctx.app.view.Render(ctx.layout+".layout", data)
+		if e != nil {
+			panic(e)
+		}
+		b = bytes.Replace(l, []byte("{@Content}"), b, -1)
+	}
+	ctx.Body = b
+	ctx.Do(CONTEXT_RENDERED)
+}
+
+func (ctx *Context) Func(name string, fn interface{}) {
+	ctx.app.view.FuncMap[name] = fn
+}
+
+func (ctx *Context) App() *App {
+	return ctx.app
+}
+
+func (ctx *Context) Download(file string) {
+	f, e := os.Stat(file)
+	if e != nil {
+		ctx.Status = 404
+		return
+	}
+	if f.IsDir(f) {
+		ctx.Status = 403
+		return
+	}
+
+	output := ctx.Response.Header()
+	output.Set("Content-Type", "application/octet-stream")
+	output.Set("Content-Disposition", "attachment; filename="+path.Base(file))
+	output.Set("Content-Transfer-Encoding", "binary")
+	output.Set("Expires", "0")
+	output.Set("Cacha-Control", "must-revalidate")
+	output.Set("Parama", "public")
+	http.ServeFile(ctx.Response, ctx.Request, file)
+	ctx.IsSend = true
 }

@@ -49,10 +49,10 @@ func (cfg *Config) StringOr(keys string, def string) string {
 		if v, ok := value.(string); ok {
 			return v
 		} else {
-			return ""
+			return def
 		}
 	} else {
-		return ""
+		return def
 	}
 }
 

@@ -1,6 +1,7 @@
 package golnk
 
 import (
+	"bytes"
 	"html/template"
 	"path"
 	"strings"
@@ -56,6 +57,22 @@ func (v *View) getTemplateInstance(tpl []string) (*template.Template, error) {
 	return t, nil
 }
 
-func (view *View) Render(fileName string, data map[string]interface{}) ([]byte, error) {
+func (view *View) Render(tpl string, data map[string]interface{}) ([]byte, error) {
+	t, e := view.getTemplateInstance(strings.Split(tpl, ","))
+	if e != nil {
+		return nil, e
+	}
 
+	var buf bytes.Buffer
+	e = t.Execute(&buf, data)
+	if e != nil {
+		return nil, e
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (v *View) NOCache() {
+	v.IsCache = false
+	v.templateCache = make(map[string]*template.Template)
 }

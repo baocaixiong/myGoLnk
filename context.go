@@ -1,6 +1,7 @@
 package golnk
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -38,8 +39,8 @@ type Context struct {
 	Header   map[string]string
 	Body     []byte
 
-	routeParams map[string]string
-	flashData   map[string]interface{}
+	routerParams map[string]string
+	flashData    map[string]interface{}
 
 	eventFunc map[string][]reflect.Value
 	IsSend    bool
@@ -84,7 +85,7 @@ func NewContext(app *App, res http.ResponseWriter, req *http.Request) *Context {
 }
 
 func (ctx *Context) Param(key string) string {
-	return ctx.routeParams[key]
+	return ctx.routerParams[key]
 }
 
 func (ctx *Context) Flash(key string, v ...interface{}) interface{} {
@@ -151,7 +152,7 @@ func (ctx *Context) Do(e string, args ...interface{}) [][]interface{} {
 func (ctx *Context) Input() map[string]string {
 	data := make(map[string]string)
 	for key, v := range ctx.Request.Form {
-		data[key] = data[0]
+		data[key] = v[0]
 	}
 	return data
 }
@@ -279,7 +280,7 @@ func (ctx *Context) Layout(str string) {
 }
 
 func (ctx *Context) Tpl(tpl string, data map[string]interface{}) string {
-	b, e := ctx.app.View.Render(tpl+".html", data)
+	b, e := ctx.app.view.Render(tpl+".html", data)
 	if e != nil {
 		panic(e)
 	}
@@ -316,7 +317,7 @@ func (ctx *Context) Download(file string) {
 		ctx.Status = 404
 		return
 	}
-	if f.IsDir(f) {
+	if f.IsDir() {
 		ctx.Status = 403
 		return
 	}
